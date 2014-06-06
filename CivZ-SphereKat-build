@@ -1,0 +1,10 @@
+
+export ARCH=arm
+export CROSS_COMPILE=~/KERNEL/TOOLCHAINS/google-4.4.3/bin/arm-eabi-
+make CivZ_5110_5100-4.4.2_defconfig
+make -j5
+rm -rf mod
+mkdir mod
+cp `find ./ | grep .ko$` modules.order mod/
+
+
