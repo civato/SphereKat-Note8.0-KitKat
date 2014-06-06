@@ -89,6 +89,7 @@ obj-$(CONFIG_MACH_M0_CTC)   += cw_tty.o
 # Secure OS Mobicore Interface
 obj-$(CONFIG_MOBICORE_SUPPORT)  += tzic.o
 obj-$(CONFIG_MOBICORE_DRIVER)  += tzic.o
+obj-$(CONFIG_CPU_UNDERVOLTING)	+= cpu_undervolting.o
 
 ifeq ($(TIMA_ENABLED),1)
 obj-$(CONFIG_TIMA_LOG)		+= tima_debug_log.o

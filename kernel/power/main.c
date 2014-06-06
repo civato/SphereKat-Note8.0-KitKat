@@ -22,25 +22,10 @@
 #define CONFIG_ROTATION_BOOSTER_SUPPORT
 #endif
 
-#if defined(CONFIG_CPU_EXYNOS4412) && defined(CONFIG_MALI_VER_BEFORE_R3P2) && defined(CONFIG_MALI_400MP_UMP_DVFS)
-#define CONFIG_EXYNOS4_GPU_LOCK
-#else
-#if defined(CONFIG_CPU_EXYNOS4412) && defined(CONFIG_MALI_DVFS)
-#define CONFIG_EXYNOS4_GPU_LOCK
-#endif
-#endif
 
 #ifdef CONFIG_DVFS_LIMIT
 #include <linux/cpufreq.h>
 #include <mach/cpufreq.h>
-#endif
-
-#ifdef CONFIG_EXYNOS4_GPU_LOCK
-#include <mach/gpufreq.h>
-#endif
-
-#ifdef CONFIG_FAST_BOOT
-#include <linux/fake_shut_down.h>
 #endif
 
 #include "power.h"
@@ -376,7 +361,9 @@ power_attr(wake_unlock);
 #endif
 
 #ifdef CONFIG_DVFS_LIMIT
-static int cpufreq_max_limit_val = -1;
+int cpufreq_max_limit_val = -1;
+/* Yank555.lu - not yet defined at startup */
+int cpufreq_max_limit_coupled = SCALING_MAX_UNDEFINED;
 static int cpufreq_min_limit_val = -1;
 DEFINE_MUTEX(cpufreq_limit_mutex);
 
@@ -404,8 +391,10 @@ static ssize_t cpufreq_table_show(struct kobject *kobj,
 		min_freq = policy->min_freq;
 		max_freq = policy->max_freq;
 	#else /* /sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_min&max_freq */
-		min_freq = policy->cpuinfo.min_freq;
-		max_freq = policy->cpuinfo.max_freq;
+		/* Yank555.lu : use govenor's min/max scaling to limit 
+		   the freq table */
+		min_freq = policy->min;
+		max_freq = policy->max;
 	#endif
 	}
 
@@ -430,7 +419,7 @@ static ssize_t cpufreq_table_store(struct kobject *kobj,
 }
 
 #define VALID_LEVEL 1
-static int get_cpufreq_level(unsigned int freq, unsigned int *level)
+int get_cpufreq_level(unsigned int freq, unsigned int *level)
 {
 	struct cpufreq_frequency_table *table;
 	unsigned int i = 0;
@@ -468,6 +457,7 @@ static ssize_t cpufreq_max_limit_store(struct kobject *kobj,
 	unsigned int cpufreq_level;
 	int lock_ret;
 	ssize_t ret = -EINVAL;
+	struct cpufreq_policy *policy;
 
 	mutex_lock(&cpufreq_limit_mutex);
 
@@ -479,19 +469,35 @@ static ssize_t cpufreq_max_limit_store(struct kobject *kobj,
 	if (val == -1) { /* Unlock request */
 		if (cpufreq_max_limit_val != -1) {
 			exynos_cpufreq_upper_limit_free(DVFS_LOCK_ID_USER);
-			cpufreq_max_limit_val = -1;
+			/* Yank555.lu - unlock now means set lock to scaling
+			 * max to support powersave mode properly */
+			policy = cpufreq_cpu_get(0);
+			if (get_cpufreq_level(policy->max, &cpufreq_level)
+				== VALID_LEVEL) {
+				lock_ret = exynos_cpufreq_upper_limit(
+					DVFS_LOCK_ID_USER, cpufreq_level);
+				cpufreq_max_limit_val = policy->max;
+				cpufreq_max_limit_coupled = SCALING_MAX_COUPLED;
+			}
 		} else /* Already unlocked */
 			printk(KERN_ERR "%s: Unlock request is ignored\n",
 				__func__);
 	} else { /* Lock request */
 		if (get_cpufreq_level((unsigned int)val, &cpufreq_level)
-		    == VALID_LEVEL) {
-			if (cpufreq_max_limit_val != -1)
+			== VALID_LEVEL) {
+			if (cpufreq_max_limit_val != -1) {
 				/* Unlock the previous lock */
 				exynos_cpufreq_upper_limit_free(
 					DVFS_LOCK_ID_USER);
-			lock_ret = exynos_cpufreq_upper_limit(
-					DVFS_LOCK_ID_USER, cpufreq_level);
+				 /* if a limit existed, uncouple */
+				cpufreq_max_limit_coupled
+					= SCALING_MAX_UNCOUPLED;
+			} else {
+				/* if no limit existed, we're booting, couple */
+				cpufreq_max_limit_coupled = SCALING_MAX_COUPLED;
+			}
+			lock_ret = exynos_cpufreq_upper_limit(DVFS_LOCK_ID_USER,
+					cpufreq_level);
 			/* ret of exynos_cpufreq_upper_limit is meaningless.
 			   0 is fail? success? */
 			cpufreq_max_limit_val = val;
@@ -573,7 +579,7 @@ static inline void rotation_booster_on(void)
 {
 	exynos_cpufreq_lock(DVFS_LOCK_ID_ROTATION_BOOSTER, L0);
 	exynos4_busfreq_lock(DVFS_LOCK_ID_ROTATION_BOOSTER, BUS_L0);
-	exynos_gpufreq_lock(1);
+	exynos_gpufreq_lock();
 }
 
 static inline void rotation_booster_off(void)
@@ -639,52 +645,6 @@ static inline void rotation_booster_on(void){}
 static inline void rotation_booster_off(void){}
 #endif /* CONFIG_ROTATION_BOOSTER_SUPPORT */
 
-#ifdef CONFIG_EXYNOS4_GPU_LOCK
-static int gpu_lock_val;
-static int gpu_lock_cnt;
-DEFINE_MUTEX(gpu_lock_mutex);
-
-static ssize_t gpu_lock_show(struct kobject *kobj,
-					struct kobj_attribute *attr,
-					char *buf)
-{
-	return sprintf(buf, "level = %d, count = %d\n",
-			gpu_lock_val, gpu_lock_cnt);
-}
-
-static ssize_t gpu_lock_store(struct kobject *kobj,
-					struct kobj_attribute *attr,
-					const char *buf, size_t n)
-{
-	int val;
-	ssize_t ret = -EINVAL;
-
-	mutex_lock(&gpu_lock_mutex);
-
-	if (sscanf(buf, "%d", &val) != 1) {
-		pr_info("%s: Invalid gpu lock format\n", __func__);
-		goto out;
-	}
-
-	if (val == 0) {	/* unlock */
-		gpu_lock_cnt = exynos_gpufreq_unlock();
-		if (gpu_lock_cnt == 0)
-			gpu_lock_val = 0;
-	} else if (val > 0 && val < 5) { /* lock with level */
-		gpu_lock_cnt = exynos_gpufreq_lock(val);
-		if (gpu_lock_val < val)
-			gpu_lock_val = val;
-	} else {
-		pr_info("%s: Lock request is invalid\n", __func__);
-	}
-
-	ret = n;
-out:
-	mutex_unlock(&gpu_lock_mutex);
-	return ret;
-}
-power_attr(gpu_lock);
-#endif
 
 static struct attribute * g[] = {
 	&state_attr.attr,
@@ -707,9 +667,6 @@ static struct attribute * g[] = {
 	&cpufreq_table_attr.attr,
 	&cpufreq_max_limit_attr.attr,
 	&cpufreq_min_limit_attr.attr,
-#endif
-#ifdef CONFIG_EXYNOS4_GPU_LOCK
-	&gpu_lock_attr.attr,
 #endif
 #ifdef CONFIG_ROTATION_BOOSTER_SUPPORT
 	&rotation_booster_attr.attr,
