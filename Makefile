@@ -1,7 +1,7 @@
 VERSION = 3
 PATCHLEVEL = 0
-SUBLEVEL = 31
-EXTRAVERSION =~CivZ-SphereKat-Rev1.4-N5110~
+SUBLEVEL = 36
+EXTRAVERSION =~CivZ-SphereKat-Rev2.0-N5110~
 NAME = Sneaky Weasel
 
 # *DOCUMENTATION*
@@ -193,7 +193,9 @@ SUBARCH := $(shell uname -m | sed -e s/i.86/i386/ -e s/sun4u/sparc64/ \
 # Note: Some architectures assign CROSS_COMPILE in their arch/*/Makefile
 export KBUILD_BUILDHOST := $(SUBARCH)
 ARCH		?= arm
+CROSS_COMPILE	?= arm-eabi-
 CROSS_COMPILE	?= $(CONFIG_CROSS_COMPILE:"%"=%)
+
 # Architecture as present in compile.h
 UTS_MACHINE 	:= $(ARCH)
 SRCARCH 	:= $(ARCH)
@@ -346,10 +348,10 @@ CHECK		= sparse
 
 CHECKFLAGS     := -D__linux__ -Dlinux -D__STDC__ -Dunix -D__unix__ \
 		  -Wbitwise -Wno-return-void $(CF)
-CFLAGS_MODULE   = -fno-pic -funswitch-loops -ftree-vectorize -mtune=cortex-a9
+CFLAGS_MODULE   = -fno-pic -funswitch-loops -ftree-vectorize
 AFLAGS_MODULE   =
 LDFLAGS_MODULE  =
-CFLAGS_KERNEL	= -funswitch-loops -ftree-vectorize -mtune=cortex-a9
+CFLAGS_KERNEL	= -funswitch-loops -ftree-vectorize
 AFLAGS_KERNEL	=
 CFLAGS_GCOV	= -fprofile-arcs -ftest-coverage
 
@@ -367,7 +369,11 @@ KBUILD_CFLAGS   := -Wall -Wundef -Wstrict-prototypes -Wno-trigraphs \
 		   -fno-strict-aliasing -fno-common \
 		   -Werror-implicit-function-declaration \
 		   -Wno-format-security \
-		   -fno-delete-null-pointer-checks
+		   -fno-delete-null-pointer-checks \
+		   -ffast-math \
+		   -mfpu=neon \
+		   -march=armv7-a \
+		   -mtune=cortex-a9
 KBUILD_AFLAGS_KERNEL :=
 KBUILD_CFLAGS_KERNEL :=
 KBUILD_AFLAGS   := -D__ASSEMBLY__
