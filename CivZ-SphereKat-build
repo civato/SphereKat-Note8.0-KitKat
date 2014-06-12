@@ -1,7 +1,7 @@
 
 export ARCH=arm
 export CROSS_COMPILE=~/KERNEL/TOOLCHAINS/google-4.4.3/bin/arm-eabi-
-make CivZ2_5100-5110-4.4.2_defconfig
+make Rev3.2_defconfig
 make -j5
 rm -rf mod
 mkdir mod
