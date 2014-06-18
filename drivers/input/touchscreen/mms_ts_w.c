@@ -20,7 +20,7 @@
 #define TOUCH_BOOSTER		0
 #define SEC_TSP_FACTORY_TEST	1
 #define TSP_TA_CALLBACK		0
-#define TSP_ENABLE_SW_RESET	0
+#define TSP_ENABLE_SW_RESET	1
 #define SHOW_TSP_DEBUG_MSG	1
 /* #define ESD_DEBUG */
 

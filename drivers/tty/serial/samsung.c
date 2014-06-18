@@ -73,7 +73,9 @@
 	defined(CONFIG_MACH_PX) || defined(CONFIG_MACH_TRATS) || defined(CONFIG_GPS_BCMxxxxx)
 /* Devices	*/
 #define CONFIG_BT_S3C_UART	0
+#if !defined(CONFIG_MACH_WATCH)
 #define CONFIG_GPS_S3C_UART	1
+#endif
 #endif
 
 #ifdef CONFIG_SERIAL_SAMSUNG_CONSOLE_SWITCH
@@ -485,9 +487,11 @@ static void s3c24xx_serial_set_mctrl(struct uart_port *port, unsigned int mctrl)
 		}
 	}
 #if !defined(CONFIG_MACH_KONA_EUR_LTE)
+#if defined(CONFIG_GPS_S3C_UART)
 	else if (port->line == CONFIG_GPS_S3C_UART) {
 		umcon |= S3C2410_UMCOM_AFC;
 	}
+#endif
 #endif
 	else {
 		umcon &= ~S3C2410_UMCOM_AFC;

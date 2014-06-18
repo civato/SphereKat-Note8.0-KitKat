@@ -818,16 +818,20 @@ static int keycode[] = {
 };
 void wacom_i2c_softkey(struct wacom_i2c *wac_i2c, s16 key, s16 pressed)
 {
-		input_report_key(wac_i2c->input_dev,
-			keycode[key], pressed);
-		input_sync(wac_i2c->input_dev);
+	if (wac_i2c->pen_pressed || wac_i2c->side_pressed
+		|| wac_i2c->pen_prox)
+			forced_release(wac_i2c);
+
+	input_report_key(wac_i2c->input_dev,
+		keycode[key], pressed);
+	input_sync(wac_i2c->input_dev);
 
 #if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
-		printk(KERN_DEBUG "epen:keycode:%d pressed:%d\n",
-			keycode[key], pressed);
+	printk(KERN_DEBUG "epen:keycode:%d pressed:%d\n",
+		keycode[key], pressed);
 #else
-		printk(KERN_DEBUG "epen:pressed:%d\n",
-			pressed);
+	printk(KERN_DEBUG "epen:pressed:%d\n",
+		pressed);
 #endif
 }
 #endif

@@ -37,6 +37,7 @@
 #define LEVEL_IS_HBM(level)		(level >= 6)
 
 #define MIN_BRIGHTNESS		0
+#define DIM_BRIGHTNESS		16
 #define MAX_BRIGHTNESS		255
 #define DEFAULT_BRIGHTNESS		160
 
@@ -339,6 +340,9 @@ static int update_brightness(struct lcd_info *lcd, u8 force)
 	mutex_lock(&lcd->bl_lock);
 
 	brightness = lcd->bd->props.brightness;
+
+	if (brightness < DIM_BRIGHTNESS)
+		brightness = DIM_BRIGHTNESS;
 
 	lcd->bl = get_backlight_level_from_brightness(brightness);
 
