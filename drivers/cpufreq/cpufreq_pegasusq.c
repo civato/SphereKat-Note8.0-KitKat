@@ -34,7 +34,7 @@
 #ifdef CONFIG_HAS_EARLYSUSPEND
 #include <linux/earlysuspend.h>
 #endif
-#define EARLYSUSPEND_HOTPLUGLOCK 1
+#define EARLYSUSPEND_HOTPLUGLOCK 0
 
 /*
  * runqueue average
@@ -146,7 +146,7 @@ static unsigned int get_nr_run_avg(void)
 #define DEF_SAMPLING_DOWN_FACTOR		(2)
 #define MAX_SAMPLING_DOWN_FACTOR		(100000)
 #define DEF_FREQUENCY_DOWN_DIFFERENTIAL		(5)
-#define DEF_FREQUENCY_UP_THRESHOLD		(85)
+#define DEF_FREQUENCY_UP_THRESHOLD		(65)
 #define DEF_FREQUENCY_MIN_SAMPLE_RATE		(10000)
 #define MIN_FREQUENCY_UP_THRESHOLD		(11)
 #define MAX_FREQUENCY_UP_THRESHOLD		(100)
@@ -158,14 +158,14 @@ static unsigned int get_nr_run_avg(void)
 #define DEF_MIN_CPU_LOCK			(0)
 #define DEF_CPU_UP_FREQ				(500000)
 #define DEF_CPU_DOWN_FREQ			(200000)
-#define DEF_UP_NR_CPUS				(1)
+#define DEF_UP_NR_CPUS				(2)
 #define DEF_CPU_UP_RATE				(10)
 #define DEF_CPU_DOWN_RATE			(20)
 #define DEF_FREQ_STEP				(37)
 #define DEF_START_DELAY				(0)
 
-#define UP_THRESHOLD_AT_MIN_FREQ		(40)
-#define FREQ_FOR_RESPONSIVENESS			(400000)
+#define UP_THRESHOLD_AT_MIN_FREQ		(30)
+#define FREQ_FOR_RESPONSIVENESS			(200000)
 
 #define HOTPLUG_DOWN_INDEX			(0)
 #define HOTPLUG_UP_INDEX			(1)
@@ -306,7 +306,7 @@ static void apply_hotplug_lock(void)
 	lock = atomic_read(&g_hotplug_lock);
 	flag = lock - online;
 
-	if (flag == 0)
+	if (lock == 0 || flag == 0)
 		return;
 
 	work = flag > 0 ? &dbs_info->up_work : &dbs_info->down_work;
@@ -483,6 +483,21 @@ static ssize_t show_hotplug_lock(struct kobject *kobj,
 {
 	return sprintf(buf, "%d\n", atomic_read(&g_hotplug_lock));
 }
+
+static ssize_t show_cpucore_table(struct kobject *kobj,
+				struct attribute *attr, char *buf)
+{
+	ssize_t count = 0;
+	int i;
+	
+	for (i = CONFIG_NR_CPUS; i > 0; i--) {
+		count += sprintf(&buf[count], "%d ", i);
+	}
+	count += sprintf(&buf[count], "\n");
+
+	return count;
+}
+
 
 #define show_hotplug_param(file_name, num_core, up_down)		\
 static ssize_t show_##file_name##_##num_core##_##up_down		\
@@ -813,6 +828,7 @@ define_one_global_rw(max_cpu_lock);
 define_one_global_rw(min_cpu_lock);
 define_one_global_rw(hotplug_lock);
 define_one_global_rw(dvfs_debug);
+define_one_global_ro(cpucore_table);
 
 static struct attribute *dbs_attributes[] = {
 	&sampling_rate_min.attr,
@@ -846,6 +862,7 @@ static struct attribute *dbs_attributes[] = {
 	&hotplug_rq_3_0.attr,
 	&hotplug_rq_3_1.attr,
 	&hotplug_rq_4_0.attr,
+	&cpucore_table.attr,
 	NULL
 };
 
