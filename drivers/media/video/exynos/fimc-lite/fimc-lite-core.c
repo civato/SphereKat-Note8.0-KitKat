@@ -2135,9 +2135,6 @@ err_vfd_alloc:
 	video_device_release(flite->vfd);
 #endif
 err_device_register:
-#if defined(CONFIG_MEDIA_CONTROLLER) && defined(CONFIG_ARCH_EXYNOS5)
-	mutex_destroy(&flite->lock);
-#endif
 	kfree(sd);
 err_irq:
 	free_irq(flite->irq, flite);

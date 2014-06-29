@@ -596,7 +596,6 @@ p_err_get_irq:
 p_err_req_region:
 	release_mem_region(regs_res->start, resource_size(regs_res));
 p_err_info:
-	mutex_destroy(&dev->lock);
 	dev_err(&dev->pdev->dev, "failed to install\n");
 	kfree(dev);
 	return ret;

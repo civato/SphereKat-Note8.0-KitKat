@@ -1440,7 +1440,6 @@ geomagnetic_raw_self_test_show(struct device *dev,
 	if (unlikely(ohz < -600 || ohz > 600))
 		err7 = -1;
 
-#if defined(CONFIG_MACH_KONA_SENSOR)
 	pr_info("%s\n"
 		"Test1 - err = %d, id = %d\n"
 		"Test3 - err = %d\n"
@@ -1456,23 +1455,6 @@ geomagnetic_raw_self_test_show(struct device *dev,
 			"%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d\n",
 			err1, id, err3, err4, x, y1, y2, err5, dir, err6, sx,
 			sy, err7, ohx, ohy, ohz, err2);
-#else
-	pr_info("%s\n"
-		"Test1 - err = %d, id = %d\n"
-		"Test3 - err = %d\n"
-		"Test4 - err = %d, offset = %d,%d,%d\n"
-		"Test5 - err = %d, direction = %d\n"
-		"Test6 - err = %d, sensitivity = %d,%d\n"
-		"Test7 - err = %d, offset = %d,%d,%d\n"
-		"Test2 - err = %d\n", __func__,
-		err1, id, err3, err4, x, y1, y2, err5, 0, err6, sx, sy,
-		err7, ohx, ohy, ohz, err2);
-
-	return sprintf(buf,
-			"%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d\n",
-			err1, id, err3, err4, x, y1, y2, err5, 0, err6, sx,
-			sy, err7, ohx, ohy, ohz, err2);
-#endif
 }
 
 static ssize_t

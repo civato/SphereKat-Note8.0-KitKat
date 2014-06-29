@@ -663,7 +663,7 @@ config STMPE811_ADC
 
 config TIMA_LOG
 	tristate "Support for dumping TIMA log"
-	default n
+	default y
 	help
 	  This option enables support for dumping TIMA log
 

@@ -1,10 +1,28 @@
 
 export ARCH=arm
 export CROSS_COMPILE=~/KERNEL/TOOLCHAINS/google-4.4.3/bin/arm-eabi-
-make Rev3.2_defconfig
+make Rev4.0_defconfig
 make -j5
 rm -rf mod
 mkdir mod
 cp `find ./ | grep .ko$` modules.order mod/
 
+
+
+export ARCH=arm
+export CROSS_COMPILE=~/KERNEL/TOOLCHAINS/google-4.4.3/bin/arm-eabi-
+make Rev4.0-5120_defconfig
+make -j5
+rm -rf mod
+mkdir mod
+cp `find ./ | grep .ko$` modules.order mod/
+
+
+export ARCH=arm
+export CROSS_COMPILE=~/KERNEL/TOOLCHAINS/google-4.4.3/bin/arm-eabi-
+make kona_01_defconfig
+make -j5
+rm -rf mod
+mkdir mod
+cp `find ./ | grep .ko$` modules.order mod/
 

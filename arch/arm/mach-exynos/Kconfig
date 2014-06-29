@@ -2155,16 +2155,6 @@ config MACH_GD2_SENSOR
 	  AK8963 / AKM
 	  CM36651 / CAPELLA
 
-config GC2PD_LTE
-	bool "GC2PD LTE model"
-	help
-	  Support GC2PD LTE
-
-config GC2PD_LTE_EUR_OPEN
-	bool "GC2PD LTE EUR model"
-	help
-	  Support GC2PD LTE for EUR
-
 config USER_RESET_DEBUG
 	bool "KOR reset reason debug feature in user version"
 	default n
