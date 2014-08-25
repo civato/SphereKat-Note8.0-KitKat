@@ -30,10 +30,6 @@
 #include <linux/slab.h>
 #include <linux/input.h>
 #include <asm/cputime.h>
-#ifdef CONFIG_HAS_EARLYSUSPEND
-#include <linux/earlysuspend.h>
-#endif
-
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/cpufreq_interactive.h>
@@ -76,10 +72,6 @@ static u64 hispeed_freq;
 /* Go to hi speed when CPU load at or above this value. */
 #define DEFAULT_GO_HISPEED_LOAD 85
 static unsigned long go_hispeed_load;
-
-#ifdef CONFIG_HAS_EARLYSUSPEND
-static unsigned long screen_off_differential;
-#endif
 
 /*
  * The minimum amount of time to spend at a frequency before we can ramp down.
@@ -225,7 +217,7 @@ static void cpufreq_interactive_timer(unsigned long data)
 			}
 		}
 	} else {
-		new_freq = pcpu->policy->cur * cpu_load / 100;
+		new_freq = pcpu->policy->max * cpu_load / 100;
 	}
 
 	if (new_freq <= hispeed_freq)
@@ -408,7 +400,6 @@ static int cpufreq_interactive_up_task(void *data)
 	unsigned long flags;
 	struct cpufreq_interactive_cpuinfo *pcpu;
 
-	pr_info("[%s] start!!\n", __func__);
 	while (1) {
 		set_current_state(TASK_INTERRUPTIBLE);
 		spin_lock_irqsave(&up_cpumask_lock, flags);
@@ -417,10 +408,8 @@ static int cpufreq_interactive_up_task(void *data)
 			spin_unlock_irqrestore(&up_cpumask_lock, flags);
 			schedule();
 
-			if (kthread_should_stop()) {
-				pr_info("[%s] should stop!!\n", __func__);
+			if (kthread_should_stop())
 				break;
-			}
 
 			spin_lock_irqsave(&up_cpumask_lock, flags);
 		}
@@ -555,7 +544,6 @@ static void cpufreq_interactive_input_event(struct input_handle *handle,
 		trace_cpufreq_interactive_boost("input");
 		cpufreq_interactive_boost();
 	}
-
 }
 
 static void cpufreq_interactive_input_open(struct work_struct *w)
@@ -677,31 +665,6 @@ static ssize_t store_go_hispeed_load(struct kobject *kobj,
 
 static struct global_attr go_hispeed_load_attr = __ATTR(go_hispeed_load, 0644,
 		show_go_hispeed_load, store_go_hispeed_load);
-
-#ifdef CONFIG_HAS_EARLYSUSPEND
-static ssize_t show_screen_off_differential(struct kobject *kobj,
-				     struct attribute *attr, char *buf)
-{
-	return sprintf(buf, "%lu\n", screen_off_differential);
-}
-
-static ssize_t store_screen_off_differential(struct kobject *kobj,
-			struct attribute *attr, const char *buf, size_t count)
-{
-	int ret;
-	unsigned long val;
-
-	ret = strict_strtoul(buf, 0, &val);
-	if (ret < 0)
-		return ret;
-	screen_off_differential = val;
-	return count;
-}
-static struct global_attr screen_off_differential_attr =
-	__ATTR(screen_off_differential,
-	0644, show_screen_off_differential,
-	store_screen_off_differential);
-#endif
 
 static ssize_t show_min_sample_time(struct kobject *kobj,
 				struct attribute *attr, char *buf)
@@ -835,39 +798,12 @@ static ssize_t store_boostpulse(struct kobject *kobj, struct attribute *attr,
 	return count;
 }
 
-
-#ifdef CONFIG_HAS_EARLYSUSPEND
-static unsigned long save_go_hispeed_load;
-static void cpufreq_early_suspend(struct early_suspend *h)
-{
-	save_go_hispeed_load = go_hispeed_load;
-	go_hispeed_load += screen_off_differential;
-	return;
-}
-
-static void cpufreq_late_resume(struct early_suspend *h)
-{
-
-	go_hispeed_load = save_go_hispeed_load;
-	return;
-}
-
-static struct early_suspend interactive_early_suspend = {
-	.level = EARLY_SUSPEND_LEVEL_DISABLE_FB + 5,
-	.suspend = cpufreq_early_suspend,
-	.resume = cpufreq_late_resume,
-};
-#endif
-
 static struct global_attr boostpulse =
 	__ATTR(boostpulse, 0200, NULL, store_boostpulse);
 
 static struct attribute *interactive_attributes[] = {
 	&hispeed_freq_attr.attr,
 	&go_hispeed_load_attr.attr,
-#ifdef CONFIG_HAS_EARLYSUSPEND
-	&screen_off_differential_attr.attr,
-#endif
 	&above_hispeed_delay.attr,
 	&min_sample_time_attr.attr,
 	&timer_rate_attr.attr,
@@ -882,12 +818,6 @@ static struct attribute_group interactive_attr_group = {
 	.name = "interactive",
 };
 
-static int cpufreq_interactive_idle_notifier(struct notifier_block *nb,
-					     unsigned long val,
-					     void *data);
-static struct notifier_block cpufreq_interactive_idle_nb = {
-	.notifier_call = cpufreq_interactive_idle_notifier,
-};
 static int cpufreq_governor_interactive(struct cpufreq_policy *policy,
 		unsigned int event)
 {
@@ -895,15 +825,11 @@ static int cpufreq_governor_interactive(struct cpufreq_policy *policy,
 	unsigned int j;
 	struct cpufreq_interactive_cpuinfo *pcpu;
 	struct cpufreq_frequency_table *freq_table;
-	struct sched_param param = { .sched_priority = MAX_RT_PRIO-1 };
 
 	switch (event) {
 	case CPUFREQ_GOV_START:
-
 		if (!cpu_online(policy->cpu))
 			return -EINVAL;
-
-		pr_info("[%s] CPUFREQ_GOV_START\n", __func__);
 
 		freq_table =
 			cpufreq_frequency_get_table(policy->cpu);
@@ -935,14 +861,6 @@ static int cpufreq_governor_interactive(struct cpufreq_policy *policy,
 		if (atomic_inc_return(&active_count) > 1)
 			return 0;
 
-		up_task = kthread_create(cpufreq_interactive_up_task, NULL,
-				"kinteractiveup");
-		if (IS_ERR(up_task))
-			return PTR_ERR(up_task);
-
-		sched_setscheduler_nocheck(up_task, SCHED_FIFO, &param);
-		get_task_struct(up_task);
-
 		rc = sysfs_create_group(cpufreq_global_kobject,
 				&interactive_attr_group);
 		if (rc)
@@ -953,17 +871,9 @@ static int cpufreq_governor_interactive(struct cpufreq_policy *policy,
 			pr_warn("%s: failed to register input handler\n",
 				__func__);
 
-		idle_notifier_register(&cpufreq_interactive_idle_nb);
-
-#ifdef CONFIG_HAS_EARLYSUSPEND
-	register_early_suspend(&interactive_early_suspend);
-#endif
 		break;
 
 	case CPUFREQ_GOV_STOP:
-
-		idle_notifier_unregister(&cpufreq_interactive_idle_nb);
-
 		for_each_cpu(j, policy->cpus) {
 			pcpu = &per_cpu(cpuinfo, j);
 			pcpu->governor_enabled = 0;
@@ -987,17 +897,6 @@ static int cpufreq_governor_interactive(struct cpufreq_policy *policy,
 		sysfs_remove_group(cpufreq_global_kobject,
 				&interactive_attr_group);
 
-		kthread_stop(up_task);
-		put_task_struct(up_task);
-		up_task = NULL;
-		pr_info("[%s] CPUFREQ_GOV_STOP\n", __func__);
-
-#ifdef CONFIG_HAS_EARLYSUSPEND
-		unregister_early_suspend(&interactive_early_suspend);
-		if (save_go_hispeed_load)
-			go_hispeed_load = save_go_hispeed_load;
-		save_go_hispeed_load = 0;
-#endif
 		break;
 
 	case CPUFREQ_GOV_LIMITS:
@@ -1028,11 +927,15 @@ static int cpufreq_interactive_idle_notifier(struct notifier_block *nb,
 	return 0;
 }
 
+static struct notifier_block cpufreq_interactive_idle_nb = {
+	.notifier_call = cpufreq_interactive_idle_notifier,
+};
 
 static int __init cpufreq_interactive_init(void)
 {
 	unsigned int i;
 	struct cpufreq_interactive_cpuinfo *pcpu;
+	struct sched_param param = { .sched_priority = MAX_RT_PRIO-1 };
 
 	go_hispeed_load = DEFAULT_GO_HISPEED_LOAD;
 	min_sample_time = DEFAULT_MIN_SAMPLE_TIME;
@@ -1046,6 +949,15 @@ static int __init cpufreq_interactive_init(void)
 		pcpu->cpu_timer.function = cpufreq_interactive_timer;
 		pcpu->cpu_timer.data = i;
 	}
+
+	up_task = kthread_create(cpufreq_interactive_up_task, NULL,
+				 "kinteractiveup");
+	if (IS_ERR(up_task))
+		return PTR_ERR(up_task);
+
+	sched_setscheduler_nocheck(up_task, SCHED_FIFO, &param);
+	get_task_struct(up_task);
+
 	/* No rescuer thread, bind to CPU queuing the work for possibly
 	   warm cache (probably doesn't matter much). */
 	down_wq = alloc_workqueue("knteractive_down", 0, 1);
@@ -1060,10 +972,12 @@ static int __init cpufreq_interactive_init(void)
 	spin_lock_init(&down_cpumask_lock);
 	mutex_init(&set_speed_lock);
 
+	idle_notifier_register(&cpufreq_interactive_idle_nb);
 	INIT_WORK(&inputopen.inputopen_work, cpufreq_interactive_input_open);
 	return cpufreq_register_governor(&cpufreq_gov_interactive);
 
 err_freeuptask:
+	put_task_struct(up_task);
 	return -ENOMEM;
 }
 
@@ -1076,10 +990,8 @@ module_init(cpufreq_interactive_init);
 static void __exit cpufreq_interactive_exit(void)
 {
 	cpufreq_unregister_governor(&cpufreq_gov_interactive);
-	if (up_task) {
-		kthread_stop(up_task);
-		put_task_struct(up_task);
-	}
+	kthread_stop(up_task);
+	put_task_struct(up_task);
 	destroy_workqueue(down_wq);
 }
 

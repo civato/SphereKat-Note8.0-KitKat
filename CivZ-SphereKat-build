@@ -1,7 +1,7 @@
 
 export ARCH=arm
-export CROSS_COMPILE=~/KERNEL/TOOLCHAINS/google-4.4.3/bin/arm-eabi-
-make Rev4.0_defconfig
+export CROSS_COMPILE=~/KERNEL/TOOLCHAINS/arm-2010q1/bin/arm-none-linux-gnueabi-
+make Rev5.4_defconfig
 make -j5
 rm -rf mod
 mkdir mod
@@ -10,8 +10,8 @@ cp `find ./ | grep .ko$` modules.order mod/
 
 
 export ARCH=arm
-export CROSS_COMPILE=~/KERNEL/TOOLCHAINS/google-4.4.3/bin/arm-eabi-
-make Rev4.0-5120_defconfig
+export CROSS_COMPILE=~/KERNEL/TOOLCHAINS/arm-2010q1/bin/arm-none-linux-gnueabi-
+make Rev5.4-5120_defconfig
 make -j5
 rm -rf mod
 mkdir mod
